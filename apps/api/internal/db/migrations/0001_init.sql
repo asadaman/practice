@@ -1,0 +1,58 @@
+-- +migrate Up
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS groups (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(255) NOT NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX (created_by),
+  FOREIGN KEY (created_by) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS group_members (
+  group_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  role ENUM('admin','member') NOT NULL DEFAULT 'member',
+  joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (group_id, user_id),
+  FOREIGN KEY (group_id) REFERENCES groups(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS expenses (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  group_id BIGINT UNSIGNED NOT NULL,
+  payer_id BIGINT UNSIGNED NOT NULL,
+  amount_decimal DECIMAL(16,2) NOT NULL,
+  currency CHAR(3) NOT NULL DEFAULT 'JPY',
+  description TEXT,
+  occurred_at DATE NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX (group_id, occurred_at),
+  FOREIGN KEY (group_id) REFERENCES groups(id),
+  FOREIGN KEY (payer_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS expense_participants (
+  expense_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  share_ratio DECIMAL(10,6) NULL,
+  share_amount DECIMAL(16,2) NULL,
+  PRIMARY KEY (expense_id, user_id),
+  FOREIGN KEY (expense_id) REFERENCES expenses(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- +migrate Down
+DROP TABLE IF EXISTS expense_participants;
+DROP TABLE IF EXISTS expenses;
+DROP TABLE IF EXISTS group_members;
+DROP TABLE IF EXISTS groups;
+DROP TABLE IF EXISTS users;
+

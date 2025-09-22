@@ -1,0 +1,59 @@
+Split Bill App — 概要説明
+
+■ 概要
+- Monorepo構成: フロントエンド（Vite+React+TypeScript+Tailwind）とバックエンド（Go+chi+MySQL+sqlc）を同居。
+- 目的: 割り勘アプリの雛形。最小のルーティングとDBスキーマ、UIの枠を用意。
+
+■ ディレクトリ
+- apps/web: Reactアプリ。ルーティング・ページ雛形・Tailwind設定。
+- apps/api: Go API。/health のみ実装、DB接続は環境変数経由。
+- infra: docker-compose.yml で MySQL を起動。
+- ルート: Makefile（起動コマンド）、.env.example（環境変数例）、README.md（手順）。
+
+■ API（Go / chi）
+- エントリ: apps/api/cmd/api/main.go
+  - 環境変数: API_PORT（デフォルト 8080）, DB_DSN（未設定でも起動、未接続で警告ログ）。
+  - ミドルウェア: RequestID, RealIP, Logger, Recoverer。
+  - ルート: GET /health（200 で {"status":"ok"}）。
+  - DBプール設定: MaxOpenConns=10, MaxIdleConns=5, ConnMaxLifetime=30m。起動時に Ping() 試行。
+- MySQLスキーマ: apps/api/internal/db/migrations/0001_init.sql
+  - users, groups, group_members, expenses, expense_participants を作成。
+  - 金額は DECIMAL(16,2)、通貨は CHAR(3)、外部キー整備。
+- sqlc: apps/api/sqlc.yaml
+  - スキーマ/クエリ置き場指定。生成先は internal/db/gen（パッケージ名 db）。
+  - クエリ例: internal/db/queries/users.sql（CreateUser, GetUserByEmail）。
+  - 生成物は未コミット（sqlc generate 前提）。
+
+■ フロントエンド（React / Vite）
+- ルート構成: apps/web/src/main.tsx で BrowserRouter と React Query をセット（現状API未使用）。
+- 画面（apps/web/src/pages）
+  - Login.tsx: メール入力のみ・擬似ログイン（submitで /dashboard へ）。
+  - Dashboard.tsx: ダミーのグループ一覧（id=1,2）を表示し /groups/:id へリンク。
+  - Group.tsx: パラメータ表示のみ（支出一覧や追加フォームの設置予定）。
+- ルーティング: apps/web/src/App.tsx
+  - / → /login へリダイレクト、/login, /dashboard, /groups/:id を定義。
+  - ヘッダーに簡易ナビゲーション。
+- スタイル: Tailwind（index.css, tailwind.config.js）。背景/前景/primary カラーを定義。
+- 依存: axios, @tanstack/react-query, react-hook-form, zod など導入済み（未使用が多い）。
+
+■ インフラ / 起動
+- DB: docker compose -f infra/docker-compose.yml up -d db
+  - ユーザ app/app、DB名 splitbill、ポート 3306 公開、永続化 db_data。
+- API: cd apps/api && go run ./cmd/api
+- Web: cd apps/web && npm run dev
+- Makefile ターゲット: db-up / db-down / api / web-dev。
+- 環境変数例: .env.example
+  - DB_DSN=app:app@tcp(127.0.0.1:3306)/splitbill?parseTime=true...
+  - API_PORT=8080, VITE_API_BASE=http://localhost:8080（現状フロント側では未参照）。
+
+■ 現在の状態とギャップ
+- API: /health のみ。ユーザー/グループ/支出のCRUDや認可は未実装。
+- Web: ダミーデータ・擬似ログインで、API連携なし。
+- sqlc: 生成コード未作成（sqlc generate 未実行想定）。
+
+■ 次の一歩（提案）
+- APIにユーザー・グループ・支出のエンドポイント追加（sqlc生成コード利用）。
+- Webで VITE_API_BASE を使い、axios + react-query によるデータ取得へ移行。
+- 簡易認証（メールリンクや魔法リンク風の疑似）またはローカルセッションの導入。
+- マイグレーション運用コマンドの整備（Up/Downコメントを活用）。
+
